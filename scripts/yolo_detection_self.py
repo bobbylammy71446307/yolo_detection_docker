@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-import argparse
 import cv2
 import json
 import sys
+import os
 from datetime import datetime
 from pathlib import Path
 from ultralytics import YOLO
@@ -141,7 +141,7 @@ def blur_face(image,frame_count):
     return image
 
 
-def main(args):
+def main():
     # Load configuration
     config = load_model_config()
     
@@ -157,12 +157,17 @@ def main(args):
     print(f"JSON: {json_dir}")
     print(f"POST endpoint: {post_endpoint}")
     
-    video_cap = rtsp_stream_init(args.stream)
-    print(f"Starting RTSP stream processing: {args.stream}")
+    # Get configuration from environment variables
+    model_type = os.getenv('YOLO_TYPE', 'person')
+    stream_url = os.getenv('YOLO_STREAM', 'rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007')
+    blur_enabled = os.getenv('YOLO_BLUR', 'true').lower() == 'true'
+
+    video_cap = rtsp_stream_init(stream_url)
+    print(f"Starting RTSP stream processing: {stream_url}")
     print("Press 'q' to quit")
 
-    # Load model based on model_type argument using config
-    model_path = get_config("models", args.type, config)
+    # Load model based on model_type from environment using config
+    model_path = get_config("models", model_type, config)
     detector = YOLO(model_path)
     
     frame_count = 0
@@ -174,34 +179,34 @@ def main(args):
                 frame_count += 1
                 if frame_count % 10 == 0:
                     detection_tmp = {
-                        "model_type": args.type,
+                        "model_type": model_type,
                         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "robot": get_config("robot", args.stream, config),
-                        "camera": get_config("camera", args.stream, config),
+                        "robot": get_config("robot", stream_url, config),
+                        "camera": get_config("camera", stream_url, config),
                         "pose":  {"x" : 0,
                                   "y" : 0,
                                   "z" : 0,
                                   "r" : 0,
-                                  "p" : 0,  
+                                  "p" : 0,
                                   "y" : 0,}
                     }
-                    if args.type in ["bicylce",
+                    if model_type in ["bicylce",
                                       "pets",
                                       "vehicle",
                                       "person"]:
-                        class_list = get_config("classes", args.type, config)
-                    else: 
+                        class_list = get_config("classes", model_type, config)
+                    else:
                         class_list=[0]
 
 
                     # Get detections as JSON array
-                    frame_detection, bounded_images = detection(detector, frame, detection_tmp, get_config("confidence", args.type, config),class_list)
+                    frame_detection, bounded_images = detection(detector, frame, detection_tmp, get_config("confidence", model_type, config),class_list)
 
-                    img_path_list=[] 
+                    img_path_list=[]
                     for i,img in enumerate(bounded_images):
-                        img_filename = f"detection_{args.type}_{frame_count}_obj_{i}.jpg"
+                        img_filename = f"detection_{model_type}_{frame_count}_obj_{i}.jpg"
                         img_filepath = images_dir / img_filename
-                        if args.blur:
+                        if blur_enabled:
                             img = blur_face(img,frame_count)
                         cv2.imwrite(str(img_filepath), img)
                         img_path_list.append(str(img_filepath))
@@ -232,7 +237,7 @@ def main(args):
                 # Try to reconnect with proper settings
                 video_cap.release()
                 time.sleep(1)
-                video_cap = rtsp_stream_init(args.stream)
+                video_cap = rtsp_stream_init(stream_url)
                 if not video_cap.isOpened():
                     print("Failed to reconnect to RTSP stream")
                     break
@@ -245,9 +250,4 @@ def main(args):
         video_cap.release()
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(description='Docker YOLO Detection Script')
-    parser.add_argument('--type', help='Model type/name (e.g., violence, license_plate, fire-and-smoke)', default="person", required=False)
-    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007",required=False)
-    parser.add_argument('--blur', action='store_true', help='Enable blur on detected objects', default=True,required=False)
-    args=parser.parse_args()
-    main(args)
+    main()

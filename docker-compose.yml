@@ -5,6 +5,9 @@ services:
     build: .
     environment:
       - PYTHONUNBUFFERED=1
+      - YOLO_TYPE=person
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007
+      - YOLO_BLUR=true
     volumes:
       - ./models:/app/models:ro
       - ./scripts:/app/scripts:ro
