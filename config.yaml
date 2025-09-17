@@ -8,9 +8,9 @@ models:
   person: "./models/yolo11n.pt"
 
 confidence:
-  violence: 0.8
+  violence: 0.85
   license_plate: 0.6
-  rubbish: 0.8
+  rubbish: 0.85
   bicylce: 0.6
   pets: 0.6
   vehicle: 0.6
@@ -32,7 +32,8 @@ camera:
 
 # API endpoint settings
 api:
-  post_endpoint: "http://post-server:8080/api/detections"
+  post_endpoint: "http://152.136.145.174:18000/aiAlarm/save"
+  # post_endpoint: "http://post-server:8080/api/detections"
   timeout: 10
 
 

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  yolo-detection:
+  yolo-detection-person:
     build: .
     environment:
       - PYTHONUNBUFFERED=1
@@ -24,18 +24,110 @@ services:
           memory: 2G
     restart: unless-stopped
 
-  post-server:
+  yolo-detection-rubbish:
     build: .
-    ports:
-      - "8080:8080"
     environment:
       - PYTHONUNBUFFERED=1
+      - YOLO_TYPE=rubbish
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007
+      - YOLO_BLUR=true
     volumes:
+      - ./models:/app/models:ro
       - ./scripts:/app/scripts:ro
-      - ./output:/app/output
+      - ./config.yaml:/app/config.yaml:ro
+      - /home/data/pics/AI/:/app/output
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
     working_dir: /app
-    command: ["python", "/app/scripts/post_server.py"]
+    command: ["python", "/app/scripts/yolo_detection_self.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
     restart: unless-stopped
+
+  yolo-detection-violence:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1
+      - YOLO_TYPE=violence
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007
+      - YOLO_BLUR=true
+    volumes:
+      - ./models:/app/models:ro
+      - ./scripts:/app/scripts:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - /home/data/pics/AI/:/app/output
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    working_dir: /app
+    command: ["python", "/app/scripts/yolo_detection_self.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    restart: unless-stopped
+
+  yolo-detection-bicylce:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1
+      - YOLO_TYPE=bicylce
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007
+      - YOLO_BLUR=true
+    volumes:
+      - ./models:/app/models:ro
+      - ./scripts:/app/scripts:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - /home/data/pics/AI/:/app/output
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    working_dir: /app
+    command: ["python", "/app/scripts/yolo_detection_self.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    restart: unless-stopped
+  
+  yolo-detection-pets:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1
+      - YOLO_TYPE=pets
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007
+      - YOLO_BLUR=true
+    volumes:
+      - ./models:/app/models:ro
+      - ./scripts:/app/scripts:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - /home/data/pics/AI/:/app/output
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    working_dir: /app
+    command: ["python", "/app/scripts/yolo_detection_self.py"]
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    restart: unless-stopped
+
+  # post-server:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   volumes:
+  #     - ./scripts:/app/scripts:ro
+  #     - ./output:/app/output
+  #   working_dir: /app
+  #   command: ["python", "/app/scripts/post_server.py"]
+  #   restart: unless-stopped
 
 volumes:
   output:
