@@ -1,11 +1,11 @@
 models:
-  violence: "./models/violence.pt"
-  license_plate: "./models/license_plate.pt"
-  rubbish: "./models/garbage.pt"
-  bicylce: "./models/yolo11n.pt"
-  pets: "./models/yolo11n.pt"
-  vehicle: "./models/yolo11n.pt"
-  person: "./models/yolo11n.pt"
+  violence: "./models/violence_rknn_model"
+  license_plate: "./models/license_plate_rknn_model"
+  rubbish: "./models/garbage_rknn_model"
+  bicylce: "./models/yolo11n_rknn_model"
+  pets: "./models/yolo11n_rknn_model"
+  vehicle: "./models/yolo11n_rknn_model"
+  person: "./models/yolo11n_rknn_model"
 
 confidence:
   violence: 0.85
@@ -24,7 +24,7 @@ classes:
 
 robot:
   rtsp://localhost:8554/stream: "local test"
-  rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007: "Genting"
+  rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007: "as00118"
 
 camera:
   rtsp://localhost:8554/stream: "camera test"
@@ -32,8 +32,8 @@ camera:
 
 # API endpoint settings
 api:
-  post_endpoint: "http://152.136.145.174:18000/aiAlarm/save"
-  # post_endpoint: "http://post-server:8080/api/detections"
+  # post_endpoint: "http://152.136.145.174:18000/aiAlarm/save"
+  post_endpoint: "http://localhost:8080/api/detections"
   timeout: 10
 
 
