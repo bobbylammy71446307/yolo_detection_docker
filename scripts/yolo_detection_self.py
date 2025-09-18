@@ -14,9 +14,7 @@ import yaml
 import requests
 import time
 
-
 def post_json_data(json_data, post_url, timeout=10):
-    """POST JSON data to specified endpoint."""
     try:
         headers = {'Content-Type': 'application/json'}
         response = requests.post(post_url, json=json_data, headers=headers, timeout=timeout)
@@ -30,7 +28,7 @@ def post_json_data(json_data, post_url, timeout=10):
 
 def detection(detector, frame, json_tmp, conf_threshold,class_list):
     results = detector.predict(frame, conf=conf_threshold, verbose=False, classes=class_list)
-    detections,image_list = [], []
+    detections,bbox_list = [], []
     frame_height, frame_width = frame.shape[:2]
     for result in results:
         if hasattr(result, 'boxes') and result.boxes is not None:
@@ -46,15 +44,12 @@ def detection(detector, frame, json_tmp, conf_threshold,class_list):
                                        "width": x2 - x1,
                                        "height": y2 - y1
                                        })
-                    bounded_img=frame.copy()         
-                    cv2.rectangle(bounded_img, (x1, y1), (x2, y2), (0, 255, 0), 2)       
-                    image_list.append(bounded_img)    
+                    bbox_list.append([x1,x2,y1,y2])    
     json_tmp.update({ "bounding_box": detections })
-    return json_tmp,image_list
+    return json_tmp,bbox_list
 
 
 def load_model_config(config_path="./config.yaml"):
-    """Load model configuration from YAML file."""
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
@@ -66,6 +61,7 @@ def load_model_config(config_path="./config.yaml"):
         print(f"Error parsing config file: {e}")
         sys.exit(1)
 
+
 def get_config(config_type, key, config):
     config_list = config.get(config_type, {})
     if key not in config_list:
@@ -75,19 +71,20 @@ def get_config(config_type, key, config):
         sys.exit(1)
     return config_list[key]
 
+
 def get_time(tz):
     now = datetime.now(tz)
     day = now.strftime('%d')
     month = now.strftime('%m')
     year = now.strftime('%Y')
     hour = now.strftime('%H')
-
     return day,month,year,hour
+
 
 def create_output_directories(tz):
     day, month, year, hour = get_time(tz)
     base_path="./output"
-    
+
     # Create directory path
     dir_path = Path(base_path) / year / month / day / hour
     dir_path.mkdir(parents=True, exist_ok=True)
@@ -95,10 +92,10 @@ def create_output_directories(tz):
     # Create subdirectories for images and json
     images_dir = dir_path / "images"
     images_dir.mkdir(exist_ok=True)
+    output_path = Path("AI") / year / month / day / hour / "images"
 
-    output_dir= Path("AI") / year / month / day / hour
     
-    return output_dir
+    return images_dir, output_path
 
 def rtsp_stream_init(rtsp_url):
     # Initialize RTSP stream with timeout settings
@@ -153,7 +150,6 @@ def main():
     
     # Create output directories
     hong_kong_tz = pytz.timezone('Asia/Hong_Kong')
-    images_dir = create_output_directories(hong_kong_tz)
     
     # Get configuration from environment variables
     model_type = os.getenv('YOLO_TYPE', 'person')
@@ -166,10 +162,13 @@ def main():
     # Load model based on model_type from environment using config
     model_path = get_config("models", model_type, config)
     detector = YOLO(model_path)
+
+    robot = get_config("robot", stream_url, config)
+    camera = get_config("camera", stream_url, config)
     
     frame_count = 0
     previous_detection = time.time()
-    detection_period = 20
+    detection_period = 5
 
     try:
         while True:
@@ -177,10 +176,11 @@ def main():
             if success:
                 frame_count += 1
                 if (time.time() - previous_detection) > detection_period:
+                    images_dir, output_dir = create_output_directories(hong_kong_tz)
                     detection_tmp = { "model_type": model_type,
                                       "time": datetime.now(hong_kong_tz).strftime("%Y-%m-%d %H:%M:%S"),
-                                      "robot": get_config("robot", stream_url, config),
-                                      "camera": get_config("camera", stream_url, config),
+                                      "robot": robot,
+                                      "camera": camera,
                                       "pose":  get_robot_pose()}
                     if model_type in ["bicylce",
                                       "pets",
@@ -191,26 +191,31 @@ def main():
                         class_list=[0]
 
                     # Get detections as JSON array
-                    frame_detection, bounded_images = detection(detector, frame, detection_tmp, get_config("confidence", model_type, config), class_list)
+                    frame_detection, bbox_list = detection(detector, frame, detection_tmp, get_config("confidence", model_type, config), class_list)
+
+
                     img_path_list=[]
-                    for i,img in enumerate(bounded_images):
-                        img_filename = f"detection_{model_type}_{frame_count}_obj_{i}.jpg"
+                    if blur_enabled and len(bbox_list)!=0:
+                        blurred_img = blur_face(frame,frame_count)
+                    for i, bbox in enumerate(bbox_list):
+                        img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_obj_{i}.jpg"
                         img_filepath = images_dir / img_filename
-                        if blur_enabled:
-                            img = blur_face(img,frame_count)
-                        cv2.imwrite(str(img_filepath), img)
-                        img_path_list.append(str(img_filepath))
+                        [x1, x2, y1, y2] = bbox
+                        bounded_image=blurred_img.copy()
+                        cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)       
+                        cv2.imwrite(str(img_filepath), bounded_image)
+                        img_path_list.append(str(output_dir / img_filename))
                     
                     # POST the JSON data
-                    if len(bounded_images)!=0:
+                    if len(bbox_list)!=0:
                         frame_detection.update({"image_path": img_path_list})
                         print(f"JSON data: {frame_detection}")
                         post_json_data(frame_detection, post_endpoint, api_timeout)
-                        detection_period=15
+                        detection_period=10
                     else:
-                        detection_period=7
+                        detection_period=5
 
-                    print(f"Frame {frame_count}: {len(bounded_images)} detections saved")
+                    print(f"Frame {frame_count}: {len(bbox_list)} detections saved")
                     previous_detection=time.time()
 
             else:
