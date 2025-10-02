@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import cv2
 import json
 import sys
@@ -141,8 +142,8 @@ def get_robot_pose():
     return pose
 
 
-def main():
-        # Load configuration
+def main(args):
+    # Load configuration
     config = load_model_config()
     
     # Get API configuration
@@ -154,9 +155,9 @@ def main():
     hong_kong_tz = pytz.timezone('Asia/Hong_Kong')
     
     # Get configuration from environment variables
-    model_type = os.getenv('YOLO_TYPE', 'person')
-    stream_url = os.getenv('YOLO_STREAM', 'rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007')
-    blur_enabled = os.getenv('YOLO_BLUR', 'true').lower() == 'true'
+    model_type = args.type
+    stream_url = args.stream
+    blur_enabled = args.blur
 
     video_cap = rtsp_stream_init(stream_url)
     print(f"Starting RTSP stream processing: {stream_url}")
@@ -167,7 +168,9 @@ def main():
     
     frame_count = 0
     previous_detection = time.time()
-    detection_period = 20
+    detection_period = 3
+    PEOPLE_CAP = 2
+
 
     try:
         while True:
@@ -205,6 +208,20 @@ def main():
                         cv2.imwrite(str(img_filepath), bounded_image)
                         img_path_list.append(str(output_dir / img_filename))
                     
+                    if len(bbox_list)>PEOPLE_CAP:
+                        full_bounded_image=blurred_img.copy()
+                        img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_full_bound.jpg"
+                        img_filepath = images_dir / img_filename
+                        for bbox in bbox_list:
+                            [x1, x2, y1, y2] = bbox
+                            cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)     
+                        cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}", (full_bounded_image.shape[1]-300, 30), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                        cv2.imwrite(str(img_filepath), full_bounded_image)
+                        frame_detection.update({"people_count": len(bbox_list)})
+                        print("Exceed people count limit!!")
+                        img_path_list.append(str(output_dir / img_filename))
+                    
                     # POST the JSON data
                     if len(bbox_list)!=0:
                         frame_detection.update({"image_path": img_path_list})
@@ -235,4 +252,9 @@ def main():
         video_cap.release()
 
 if __name__=="__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Docker YOLO Detection Script')
+    parser.add_argument('--type', help='Model type/name (e.g., violence, license_plate, fire-and-smoke)', default="license_plate", required=False)
+    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://localhost:8554/stream",required=False)
+    parser.add_argument('--blur', action='store_true', help='Enable blur on detected objects',required=False)
+    args=parser.parse_args()
+    main(args)
