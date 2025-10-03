@@ -1,10 +1,9 @@
 # RKNN implementation of tasks
 
-Brief description of your project.
 
 ## About
 
-Provide a more detailed description of your project. Explain what problem it solves, its purpose, and any background information that might be helpful for users.
+
 
 
 ### Steps
