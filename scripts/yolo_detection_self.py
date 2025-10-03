@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import argparse
 import cv2
@@ -14,6 +14,8 @@ import pytz
 import yaml
 import requests
 import time
+import socket
+from tcp_listener import TCP_Listener
 
 
 def post_json_data(json_data, post_url, timeout=10):
@@ -142,7 +144,7 @@ def get_robot_pose():
     return pose
 
 
-def main(args):
+def main(args,listener):
     # Load configuration
     config = load_model_config()
     
@@ -170,14 +172,15 @@ def main(args):
     previous_detection = time.time()
     detection_period = 3
     PEOPLE_CAP = 2
-
+    valid_path=["a","b"]
 
     try:
         while True:
+            path_name=listener.PathName
             success, frame = video_cap.read()
             if success:
                 frame_count += 1
-                if (time.time() - previous_detection) > detection_period:
+                if (time.time() - previous_detection) > detection_period and path_name in valid_path:
                     images_dir, output_dir = create_output_directories(hong_kong_tz)
                     detection_tmp = { "model_type": model_type,
                                       "time": datetime.now(hong_kong_tz).strftime("%Y-%m-%d %H:%M:%S"),
@@ -225,6 +228,7 @@ def main(args):
                     # POST the JSON data
                     if len(bbox_list)!=0:
                         frame_detection.update({"image_path": img_path_list})
+                        frame_detection.update({"people_count": len(bbox_list)})
                         print(f"JSON data: {frame_detection}")
                         post_json_data(frame_detection, post_endpoint, api_timeout)
                         detection_period=15
@@ -233,6 +237,8 @@ def main(args):
 
                     print(f"Frame {frame_count}: {len(bbox_list)} detections saved")
                     previous_detection=time.time()
+                elif path_name not in valid_path:
+                    print(f"Current path {path_name} not in detection area, skipping ....")
 
             else:
                 print("Failed to read frame from RTSP stream")
@@ -253,8 +259,10 @@ def main(args):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Docker YOLO Detection Script')
-    parser.add_argument('--type', help='Model type/name (e.g., violence, license_plate, fire-and-smoke)', default="license_plate", required=False)
-    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://localhost:8554/stream",required=False)
-    parser.add_argument('--blur', action='store_true', help='Enable blur on detected objects',required=False)
+    parser.add_argument('--type', help='Model type/name (e.g., violence, license_plate, fire-and-smoke)', default="person", required=False)
+    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001",required=False)
+    parser.add_argument('--blur', action='store_true', help='Enable blur on detected objects',default= True, required=False)
     args=parser.parse_args()
-    main(args)
+    listener=TCP_Listener()
+    listener.start()
+    main(args,listener)

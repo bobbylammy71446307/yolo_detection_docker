@@ -4,3 +4,5 @@ models/fire_and_smoke.pt
 models/license_plate_11x.pt
 
 .vscode
+
+scripts/__pycache__
