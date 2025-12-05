@@ -1,222 +1,120 @@
 version: '3.8'
 
+x-common-config: &common-config
+  image: yolo-detection:latest
+  environment:
+    - PYTHONUNBUFFERED=1
+    - YOLO_STREAM=rtsp://192.144.182.93:10554/34020000001110000214_34020000001320214003
+    - YOLO_BLUR=true
+  volumes:
+    - ./models:/app/models:ro
+    - ./scripts:/app/scripts:ro
+    - ./config.yaml:/app/config.yaml:ro
+    - /home/data/pics/AI/:/app/output
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - ./logs:/app/logs
+  working_dir: /app
+  command: ["python", "/app/scripts/yolo_detection_self.py"]
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "5"
+  deploy:
+    resources:
+      limits:
+        memory: 4G
+      reservations:
+        memory: 2G
+  restart: unless-stopped
+
 services:
   yolo-detection-person:
-    build: .
+    <<: *common-config
     environment:
-      - PYTHONUNBUFFERED=1
       - YOLO_TYPE=person
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "5"
         tag: "yolo-person"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
 
-  yolo-detection-rubbish:
-    build: .
-    environment:
-      - PYTHONUNBUFFERED=1
-      - YOLO_TYPE=rubbish
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-        tag: "yolo-rubbish"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
-  
-  yolo-detection-vehicle:
-    build: .
-    environment:
-      - PYTHONUNBUFFERED=1
-      - YOLO_TYPE=vehicle
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-        tag: "yolo-vehicle"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
+  # yolo-detection-rubbish:
+  #   <<: *common-config
+  #   environment:
+  #     - YOLO_TYPE=rubbish
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+  #       tag: "yolo-rubbish"
 
-  yolo-detection-violence:
-    build: .
-    environment:
-      - PYTHONUNBUFFERED=1
-      - YOLO_TYPE=violence
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-        tag: "yolo-violence"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
+  # yolo-detection-vehicle:
+  #   <<: *common-config
+  #   environment:
+  #     - YOLO_TYPE=vehicle
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+  #       tag: "yolo-vehicle"
+
+  # yolo-detection-violence:
+  #   <<: *common-config
+  #   environment:
+  #     - YOLO_TYPE=violence
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+  #       tag: "yolo-violence"
 
   yolo-detection-bicycle:
-    build: .
+    <<: *common-config
     environment:
-      - PYTHONUNBUFFERED=1
       - YOLO_TYPE=bicycle
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "5"
         tag: "yolo-bicycle"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
-  
+
   yolo-detection-pets:
-    build: .
+    <<: *common-config
     environment:
-      - PYTHONUNBUFFERED=1
       - YOLO_TYPE=pets
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "5"
         tag: "yolo-pets"
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
 
-  yolo-detection-plate:
-    build: .
-    environment:
-      - PYTHONUNBUFFERED=1
-      - YOLO_TYPE=license_plate
-      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000108_34020000001320108001
-      - YOLO_BLUR=true
-    volumes:
-      - ./models:/app/models:ro
-      - ./scripts:/app/scripts:ro
-      - ./config.yaml:/app/config.yaml:ro
-      - /home/data/pics/AI/:/app/output
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./logs:/app/logs
-    working_dir: /app
-    command: ["python", "/app/scripts/yolo_detection_self.py"]
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
-    restart: unless-stopped
+  # yolo-detection-plate:
+  #   <<: *common-config
+  #   environment:
+  #     - YOLO_TYPE=license_plate
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+  #       tag: "yolo-plate"
 
-  post-server:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./scripts:/app/scripts:ro
-      - ./output:/app/output
-    working_dir: /app
-    command: ["python", "/app/scripts/post_server.py"]
-    restart: unless-stopped
-
-volumes:
-  output:
+  # post-server:
+  #   image: yolo-detection:latest
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   volumes:
+  #     - ./scripts:/app/scripts:ro
+  #     - ./output:/app/output
+  #   working_dir: /app
+  #   command: ["python", "/app/scripts/post_server.py"]
+  #   restart: unless-stopped

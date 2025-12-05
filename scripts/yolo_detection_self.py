@@ -153,7 +153,7 @@ def main():
     
     # Get configuration from environment variables
     model_type = os.getenv('YOLO_TYPE', 'person')
-    stream_url = os.getenv('YOLO_STREAM', 'rtsp://18.167.218.143:10554/34020000001320118007_34020000001320118007')
+    stream_url = os.getenv('YOLO_STREAM', 'rtsp://192.144.182.93:10554/34020000001110000214_34020000001320214003')
     blur_enabled = os.getenv('YOLO_BLUR', 'true').lower() == 'true'
 
     video_cap = rtsp_stream_init(stream_url)
