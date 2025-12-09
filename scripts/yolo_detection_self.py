@@ -32,6 +32,9 @@ def detection(detector, frame, json_tmp, conf_threshold, class_list, track_count
     detections, bbox_list, track_ids_to_post = [], [], []
     frame_height, frame_width = frame.shape[:2]
 
+    # Track which IDs are present in current frame
+    current_track_ids = set()
+
     for result in results:
         if hasattr(result, 'boxes') and result.boxes is not None:
             boxes = result.boxes
@@ -43,8 +46,9 @@ def detection(detector, frame, json_tmp, conf_threshold, class_list, track_count
                 track_id = None
                 if hasattr(box, 'id') and box.id is not None:
                     track_id = int(box.id[0])
+                    current_track_ids.add(track_id)
 
-                    # Update track count
+                    # Update consecutive count
                     if track_id not in track_counts:
                         track_counts[track_id] = 0
                     track_counts[track_id] += 1
@@ -65,6 +69,11 @@ def detection(detector, frame, json_tmp, conf_threshold, class_list, track_count
                             "height": y2 - y1
                         })
                         bbox_list.append([x1, x2, y1, y2])
+
+    # Reset count for tracks that disappeared (not in current frame)
+    tracks_to_reset = [tid for tid in track_counts if tid not in current_track_ids and tid not in posted_track_ids]
+    for tid in tracks_to_reset:
+        track_counts[tid] = 0
 
     json_tmp.update({"bounding_box": detections})
     return json_tmp, bbox_list, track_ids_to_post
