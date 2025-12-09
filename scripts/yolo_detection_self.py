@@ -31,28 +31,57 @@ def post_json_data(json_data, post_url, timeout=10):
         return False
 
 
-def detection(detector, frame, json_tmp, conf_threshold,class_list):
-    results = detector.predict(frame, conf=conf_threshold, verbose=False, classes=class_list)
-    detections,bbox_list = [], []
+def detection(detector, frame, json_tmp, conf_threshold, class_list, track_counts, posted_track_ids, track_threshold=5):
+    # Use tracker to enable object tracking
+    results = detector.track(frame, conf=conf_threshold, verbose=False, classes=class_list, persist=True)
+    detections, bbox_list, track_ids_to_post = [], [], []
     frame_height, frame_width = frame.shape[:2]
+
+    # Track which IDs are present in current frame
+    current_track_ids = set()
+
     for result in results:
         if hasattr(result, 'boxes') and result.boxes is not None:
             boxes = result.boxes
             for box in boxes:
                 # Get box coordinates
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+
+                # Get track ID if available
+                track_id = None
+                if hasattr(box, 'id') and box.id is not None:
+                    track_id = int(box.id[0])
+                    current_track_ids.add(track_id)
+
+                    # Update consecutive count
+                    if track_id not in track_counts:
+                        track_counts[track_id] = 0
+                    track_counts[track_id] += 1
+
+                    # Check if this track should be posted
+                    if track_counts[track_id] >= track_threshold and track_id not in posted_track_ids:
+                        track_ids_to_post.append(track_id)
+
                 if (x2 - x1) * (y2 - y1) / (frame_height * frame_width) < 0.9:
-                    detections.append({"x1": x1,
-                                       "y1": y1, 
-                                       "x2": x2,
-                                       "y2": y2,
-                                       "width": x2 - x1,
-                                       "height": y2 - y1
-                                       })
-                    bounded_img=frame.copy()         
-                    bbox_list.append([x1,x2,y1,y2])    
-    json_tmp.update({ "bounding_box": detections })
-    return json_tmp,bbox_list
+                    # Only add to detection if track_id is in the list to post
+                    if track_id is not None and track_id in track_ids_to_post:
+                        detections.append({
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2,
+                            "width": x2 - x1,
+                            "height": y2 - y1
+                        })
+                        bbox_list.append([x1, x2, y1, y2])
+
+    # Reset count for tracks that disappeared (not in current frame)
+    tracks_to_reset = [tid for tid in track_counts if tid not in current_track_ids and tid not in posted_track_ids]
+    for tid in tracks_to_reset:
+        track_counts[tid] = 0
+
+    json_tmp.update({"bounding_box": detections})
+    return json_tmp, bbox_list, track_ids_to_post
 
 
 def load_model_config(config_path="./config.yaml"):
@@ -167,12 +196,17 @@ def main(args,listener):
     # Load model based on model_type from environment using config
     model_path = get_config("models", model_type, config)
     detector = YOLO(model_path)
-    
+
     frame_count = 0
     previous_detection = time.time()
     detection_period = 3
     PEOPLE_CAP = 2
     valid_path=["a","b"]
+
+    # Track ID management
+    track_counts = {}  # {track_id: consecutive_count}
+    posted_track_ids = set()  # Set of track IDs that have been posted
+    track_threshold = 5  # Consecutive detections required before posting
 
     try:
         while True:
@@ -196,47 +230,59 @@ def main(args,listener):
                         class_list=[0]
 
                     # Get detections as JSON array
-                    frame_detection, bbox_list = detection(detector, frame, detection_tmp, get_config("confidence", model_type, config), class_list)
+                    frame_detection, bbox_list, track_ids_to_post = detection(
+                        detector, frame, detection_tmp,
+                        get_config("confidence", model_type, config),
+                        class_list, track_counts, posted_track_ids, track_threshold
+                    )
 
-
-                    img_path_list=[]
-                    if blur_enabled:
-                        blurred_img = blur_face(frame,frame_count)
-                    for i, bbox in enumerate(bbox_list):
-                        img_filename = f"detection_{model_type}_{frame_count}_obj_{i}.jpg"
-                        img_filepath = images_dir / img_filename
-                        [x1, x2, y1, y2] = bbox
-                        bounded_image=blurred_img.copy()
-                        cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)       
-                        cv2.imwrite(str(img_filepath), bounded_image)
-                        img_path_list.append(str(output_dir / img_filename))
-                    
-                    if len(bbox_list)>PEOPLE_CAP:
-                        full_bounded_image=blurred_img.copy()
-                        img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_full_bound.jpg"
-                        img_filepath = images_dir / img_filename
-                        for bbox in bbox_list:
+                    # Only proceed with saving and posting if there are track IDs ready to post
+                    if track_ids_to_post and len(bbox_list) != 0:
+                        img_path_list = []
+                        if blur_enabled:
+                            blurred_img = blur_face(frame, frame_count)
+                        for i, bbox in enumerate(bbox_list):
+                            img_filename = f"detection_{model_type}_{frame_count}_obj_{i}.jpg"
+                            img_filepath = images_dir / img_filename
                             [x1, x2, y1, y2] = bbox
-                            cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)     
-                        cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}", (full_bounded_image.shape[1]-300, 30), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                        cv2.imwrite(str(img_filepath), full_bounded_image)
-                        frame_detection.update({"people_count": len(bbox_list)})
-                        print("Exceed people count limit!!")
-                        img_path_list.append(str(output_dir / img_filename))
-                    
-                    # POST the JSON data
-                    if len(bbox_list)!=0:
+                            bounded_image = blurred_img.copy()
+                            cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv2.imwrite(str(img_filepath), bounded_image)
+                            img_path_list.append(str(output_dir / img_filename))
+
+                        if len(bbox_list) > PEOPLE_CAP:
+                            full_bounded_image = blurred_img.copy()
+                            img_filename = f"detection_{model_type}_{frame_count}_full_bound.jpg"
+                            img_filepath = images_dir / img_filename
+                            for bbox in bbox_list:
+                                [x1, x2, y1, y2] = bbox
+                                cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}",
+                                       (full_bounded_image.shape[1]-300, 30),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                            cv2.imwrite(str(img_filepath), full_bounded_image)
+                            frame_detection.update({"people_count": len(bbox_list)})
+                            print("Exceed people count limit!!")
+                            img_path_list.append(str(output_dir / img_filename))
+
+                        # POST the JSON data
                         frame_detection.update({"image_path": img_path_list})
                         frame_detection.update({"people_count": len(bbox_list)})
                         print(f"JSON data: {frame_detection}")
                         post_json_data(frame_detection, post_endpoint, api_timeout)
-                        detection_period=15
-                    else:
-                        detection_period=7
 
-                    print(f"Frame {frame_count}: {len(bbox_list)} detections saved")
-                    previous_detection=time.time()
+                        # Mark these track IDs as posted
+                        posted_track_ids.update(track_ids_to_post)
+
+                        detection_period = 15
+                        print(f"Frame {frame_count}: Posted {len(track_ids_to_post)} new tracks with {len(bbox_list)} detections")
+                    elif len(bbox_list) != 0:
+                        print(f"Frame {frame_count}: {len(bbox_list)} detections (waiting for threshold)")
+                        detection_period = 7
+                    else:
+                        detection_period = 7
+
+                    previous_detection = time.time()
                 elif path_name not in valid_path:
                     print(f"Current path {path_name} not in detection area, skipping ....")
 
