@@ -248,7 +248,7 @@ def main():
                         img_filepath = images_dir / img_filename
                         [x1, x2, y1, y2] = bbox
                         bounded_image = blurred_img.copy()
-                        cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 255), 2)
                         cv2.imwrite(str(img_filepath), bounded_image)
                         img_path_list.append(str(output_dir / img_filename))
 
@@ -258,7 +258,7 @@ def main():
                         img_filepath = images_dir / img_filename
                         for bbox in bbox_list:
                             [x1, x2, y1, y2] = bbox
-                            cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 255), 2)
                         cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}",
                                    (full_bounded_image.shape[1]-300, 30),
                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
