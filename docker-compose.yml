@@ -4,7 +4,7 @@ x-common-config: &common-config
   image: yolo-detection:latest
   environment:
     - PYTHONUNBUFFERED=1
-    - YOLO_STREAM=rtsp://192.144.182.93:10554/34020000001110000214_34020000001320214003
+    - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000214_34020000001320214003
     - YOLO_BLUR=true
   volumes:
     - ./models:/app/models:ro
@@ -32,6 +32,9 @@ services:
   yolo-detection-person:
     <<: *common-config
     environment:
+      - PYTHONUNBUFFERED=1
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000214_34020000001320214003
+      - YOLO_BLUR=true
       - YOLO_TYPE=person
     logging:
       driver: "json-file"
@@ -77,6 +80,8 @@ services:
     <<: *common-config
     environment:
       - YOLO_TYPE=bicycle
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000214_34020000001320214003
+
     logging:
       driver: "json-file"
       options:
@@ -88,6 +93,8 @@ services:
     <<: *common-config
     environment:
       - YOLO_TYPE=pets
+      - YOLO_STREAM=rtsp://18.167.218.143:10554/34020000001110000214_34020000001320214003
+
     logging:
       driver: "json-file"
       options:
