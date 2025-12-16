@@ -197,90 +197,86 @@ def main():
     camera = get_config("camera", stream_url, config)
 
     frame_count = 0
-    previous_detection = time.time()
-    detection_period = 3
+    frame_skip = 8
     PEOPLE_CAP = 2
 
     # Track ID management
     track_counts = {}  # {track_id: count}
     posted_track_ids = set()  # Set of track IDs that have been posted
-    track_threshold = int(os.getenv('YOLO_TRACK_THRESHOLD', '5'))  # Threshold for posting
+    track_threshold = int(os.getenv('YOLO_TRACK_THRESHOLD', '8'))  # Threshold for posting
 
     try:
         while True:
             success, frame = video_cap.read()
             if success:
                 frame_count += 1
-                if (time.time() - previous_detection) > detection_period:
-                    images_dir, output_dir = create_output_directories(hong_kong_tz)
-                    detection_tmp = { "model_type": model_type,
-                                      "time": datetime.now(hong_kong_tz).strftime("%Y-%m-%d %H:%M:%S"),
-                                      "robot": robot,
-                                      "camera": camera,
-                                      "pose":  get_robot_pose()}
-                    if model_type in ["bicycle",
-                                      "pets",
-                                      "vehicle",
-                                      "person"]:
-                        class_list = get_config("classes", model_type, config)
-                    else:
-                        class_list=[0]
+                # Skip frames based on frame_skip value
+                if frame_count % frame_skip != 0:
+                    continue
 
-                    # Get detections as JSON array
-                    print(f"Start detection of {model_type}: ")
-                    frame_detection, bbox_list, track_ids_to_post = detection(
-                        detector, frame, detection_tmp,
-                        get_config("confidence", model_type, config),
-                        class_list, track_counts, posted_track_ids, track_threshold
-                    )
+                images_dir, output_dir = create_output_directories(hong_kong_tz)
+                detection_tmp = { "model_type": model_type,
+                                  "time": datetime.now(hong_kong_tz).strftime("%Y-%m-%d %H:%M:%S"),
+                                  "robot": robot,
+                                  "camera": camera,
+                                  "pose":  get_robot_pose()}
+                if model_type in ["bicycle",
+                                  "pets",
+                                  "vehicle",
+                                  "person"]:
+                    class_list = get_config("classes", model_type, config)
+                else:
+                    class_list=[0]
 
-                    # Only proceed with saving and posting if there are track IDs ready to post
-                    if track_ids_to_post and len(bbox_list) != 0:
-                        img_path_list = []
-                        if blur_enabled:
-                            print(f"Start detection of faces: ")
-                            blurred_img = blur_face(frame, frame_count)
+                # Get detections as JSON array
+                print(f"Start detection of {model_type}: ")
+                frame_detection, bbox_list, track_ids_to_post = detection(
+                    detector, frame, detection_tmp,
+                    get_config("confidence", model_type, config),
+                    class_list, track_counts, posted_track_ids, track_threshold
+                )
 
-                        for i, bbox in enumerate(bbox_list):
-                            img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_obj_{i}.jpg"
-                            img_filepath = images_dir / img_filename
+                # Only proceed with saving and posting if there are track IDs ready to post
+                if track_ids_to_post and len(bbox_list) != 0:
+                    img_path_list = []
+                    if blur_enabled:
+                        print(f"Start detection of faces: ")
+                        blurred_img = blur_face(frame, frame_count)
+
+                    for i, bbox in enumerate(bbox_list):
+                        img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_obj_{i}.jpg"
+                        img_filepath = images_dir / img_filename
+                        [x1, x2, y1, y2] = bbox
+                        bounded_image = blurred_img.copy()
+                        cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.imwrite(str(img_filepath), bounded_image)
+                        img_path_list.append(str(output_dir / img_filename))
+
+                    if len(bbox_list) > PEOPLE_CAP:
+                        full_bounded_image = blurred_img.copy()
+                        img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_full_bound.jpg"
+                        img_filepath = images_dir / img_filename
+                        for bbox in bbox_list:
                             [x1, x2, y1, y2] = bbox
-                            bounded_image = blurred_img.copy()
-                            cv2.rectangle(bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.imwrite(str(img_filepath), bounded_image)
-                            img_path_list.append(str(output_dir / img_filename))
+                            cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}",
+                                   (full_bounded_image.shape[1]-300, 30),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                        cv2.imwrite(str(img_filepath), full_bounded_image)
+                        print("Exceed people count limit!!")
+                        img_path_list.append(str(output_dir / img_filename))
 
-                        if len(bbox_list) > PEOPLE_CAP:
-                            full_bounded_image = blurred_img.copy()
-                            img_filename = f"{robot}_{camera}_detection_{model_type}_{frame_count}_full_bound.jpg"
-                            img_filepath = images_dir / img_filename
-                            for bbox in bbox_list:
-                                [x1, x2, y1, y2] = bbox
-                                cv2.rectangle(full_bounded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.putText(full_bounded_image, f"PEOPLE COUNT: {len(bbox_list)}",
-                                       (full_bounded_image.shape[1]-300, 30),
-                                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                            cv2.imwrite(str(img_filepath), full_bounded_image)
-                            print("Exceed people count limit!!")
-                            img_path_list.append(str(output_dir / img_filename))
+                    # POST the JSON data
+                    frame_detection.update({"image_path": img_path_list})
+                    print(f"JSON data: {frame_detection}")
+                    post_json_data(frame_detection, post_endpoint, api_timeout)
 
-                        # POST the JSON data
-                        frame_detection.update({"image_path": img_path_list})
-                        print(f"JSON data: {frame_detection}")
-                        post_json_data(frame_detection, post_endpoint, api_timeout)
+                    # Mark these track IDs as posted
+                    posted_track_ids.update(track_ids_to_post)
 
-                        # Mark these track IDs as posted
-                        posted_track_ids.update(track_ids_to_post)
-
-                        detection_period = 7
-                        print(f"Frame {frame_count}: Posted {len(track_ids_to_post)} new tracks with {len(bbox_list)} detections")
-                    elif len(bbox_list) != 0:
-                        print(f"Frame {frame_count}: {len(bbox_list)} detections (waiting for threshold)")
-                        detection_period = 3
-                    else:
-                        detection_period = 3
-
-                    previous_detection = time.time()
+                    print(f"Frame {frame_count}: Posted {len(track_ids_to_post)} new tracks with {len(bbox_list)} detections")
+                elif len(bbox_list) != 0:
+                    print(f"Frame {frame_count}: {len(bbox_list)} detections (waiting for threshold)")
 
             else:
                 print("Failed to read frame from RTSP stream")
