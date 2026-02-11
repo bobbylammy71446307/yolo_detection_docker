@@ -17,7 +17,6 @@ import pytz
 import yaml
 from pathlib import Path
 from ultralytics import YOLO
-from tcp_listener import TCP_Listener
 
 # Set FFMPEG environment variables for stable RTSP streaming with RKNN hardware acceleration
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|buffer_size;1024000|max_delay;500000|hwaccel;rkmpp'
@@ -314,7 +313,7 @@ def draw_tracking_results(frame, detections):
     return frame
 
 
-def main(args, listener):
+def main(args):
     # Load configuration
     config = load_model_config()
 
@@ -325,7 +324,7 @@ def main(args, listener):
     # Get device configuration
     device_config = config.get("device", {})
     device_id = device_config.get("device_id", "8")
-    vin = device_config.get("vin", "as00086")
+    vin = device_config.get("vin", "as00215")
     picture_type = device_config.get("picture_type", 19)
 
     # Create output directories
@@ -335,7 +334,6 @@ def main(args, listener):
     model_type = args.type
     stream_url = args.stream
     blur_enabled = args.blur
-    check_path = args.check_path
 
     video_cap = rtsp_stream_init(stream_url)
     logger.info(f"Starting RTSP stream processing: {stream_url}")
@@ -347,7 +345,6 @@ def main(args, listener):
 
     frame_count = 0
     PEOPLE_CAP = 2
-    valid_path = ["a", "b", ""]
     frame_skip = 5
 
     # Track ID management
@@ -357,18 +354,12 @@ def main(args, listener):
 
     try:
         while True:
-            path_name = listener.PathName
             success, frame = video_cap.read()
             if success:
                 frame_count += 1
 
                 # Skip frames
                 if frame_count % frame_skip != 0:
-                    continue
-
-                # Check path validation if enabled
-                if check_path and path_name not in valid_path:
-                    logger.debug(f"Current path {path_name} not in detection area, skipping ....")
                     continue
 
                 logger.info("Processing frame...")
@@ -453,10 +444,7 @@ def main(args, listener):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='YOLO Detection with New Endpoint Structure')
     parser.add_argument('--type', help='Model type/name (e.g., violence, license_plate, fire-and-smoke)', default="person", required=False)
-    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://admin:rsxx1111@192.168.9.30", required=False)
+    parser.add_argument('--stream', help='RTSP stream URL', default="rtsp://admin:192.168.10.68/Streaming/Channels/201", required=False)
     parser.add_argument('--blur', action='store_true', help='Enable blur on detected objects', default=True, required=False)
-    parser.add_argument('--check-path', action='store_true', help='Enable path validation check', default=False, required=False)
     args = parser.parse_args()
-    listener = TCP_Listener()
-    listener.start()
-    main(args, listener)
+    main(args)
