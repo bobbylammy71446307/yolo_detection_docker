@@ -41,11 +41,14 @@ camera:
   rtsp://192.144.182.93:10554/34020000001110000211_34020000001310211003: "left_camera"
   rtsp://192.144.182.93:10554/34020000001110000211_34020000001310211004: "right_camera"
   rtsp://192.144.182.93:10554/34020000001110000211_34020000001310211001: "front_camera"
-  
+  rtsp://admin:rsxx1111@192.168.9.30: "front_left"
+
 # API endpoint settings
 api:
   # post_endpoint: "http://152.136.145.174:18000/aiAlarm/save"
-  post_endpoint: "http://localhost:8000/api/detections"
+  # post_endpoint: "http://18.167.218.143:18000/aiAlarm/save"
+  # post_endpoint: "http://localhost:8000/api/detections"
+  post_endpoint: "http://18.167.218.143:18000/pic/AIEarlyWarning"
   timeout: 10
 
 
